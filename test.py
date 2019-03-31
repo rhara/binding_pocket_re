@@ -1,3 +1,4 @@
+import argparse
 from rdkit import Chem
 import numpy as np
 import mdtraj
@@ -5,6 +6,7 @@ from deepchem.feat import CircularFingerprint
 from deepchem.utils.save import log
 from deepchem.feat import Featurizer
 import binding_pocket as bp
+
 
 class BindingPocketFeaturizer(Featurizer):
     """
@@ -37,7 +39,6 @@ class BindingPocketFeaturizer(Featurizer):
         return all_features
 
 
-
 def compute_binding_pocket_features(protein_fname, ligand_fname, threshold=.3):
     ligand_mol2 = ligand_fname.replace('.sdf', '.mol2')
 
@@ -68,8 +69,14 @@ def compute_binding_pocket_features(protein_fname, ligand_fname, threshold=.3):
 
     return features, labels
 
-  
+
+parser = argparse.ArgumentParser(description='BindingPocketFeaturizer')
+parser.add_argument('--protein', '-p', type=str, required=True, help='Potein file')
+parser.add_argument('--ligand', '-l', type=str, required=True, help='Ligand file')
+parser.add_argument('--threshold', '-t', type=float, default=.3, help='Threshold')
+args.parser.parse_args()
+
 pocket_featurizer = BindingPocketFeaturizer()
 ligand_featurizer = CircularFingerprint(size=1024)
 
-compute_binding_pocket_features('v2015/3zzf/3zzf_protein.pdb', 'v2015/3zzf/3zzf_ligand.sdf')
+compute_binding_pocket_features(args.protein', args.ligand, threshold=args.threshold)
