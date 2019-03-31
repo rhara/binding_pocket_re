@@ -74,7 +74,7 @@ parser = argparse.ArgumentParser(description='BindingPocketFeaturizer')
 parser.add_argument('--protein', '-p', type=str, required=True, help='Potein file')
 parser.add_argument('--ligand', '-l', type=str, required=True, help='Ligand file')
 parser.add_argument('--threshold', '-t', type=float, default=.3, help='Threshold')
-args.parser.parse_args()
+args = parser.parse_args()
 
 protein_fname = args.protein
 ligand_fname = args.ligand
