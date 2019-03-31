@@ -7,8 +7,7 @@ import binding_pocket
 from binding_pocket import ConvexHullPocketFinder
 from bp_features import BindingPocketFeaturizer
 
-def compute_binding_pocket_features(pocket_featurizer, ligand_featurizer,
-                                    pdb_subdir, pdb_code, threshold=.3):
+def compute_binding_pocket_features(pocket_featurizer, ligand_featurizer, pdb_subdir, pdb_code, threshold=.3):
   """Compute features for a given complex"""
   protein_file = os.path.join(pdb_subdir, "%s_protein.pdb" % pdb_code)
   ligand_file = os.path.join(pdb_subdir, "%s_ligand.sdf" % pdb_code)

@@ -12,10 +12,8 @@ logger = logging.getLogger(__name__)
 
 def extract_active_site(protein_file, ligand_file, cutoff=4):
   """Extracts a box for the active site."""
-  protein_coords = rdkit_util.load_molecule(
-      protein_file, add_hydrogens=False)[0]
-  ligand_coords = rdkit_util.load_molecule(
-      ligand_file, add_hydrogens=True, calc_charges=True)[0]
+  protein_coords = rdkit_util.load_molecule(protein_file, add_hydrogens=False)[0]
+  ligand_coords = rdkit_util.load_molecule(ligand_file, add_hydrogens=True, calc_charges=True)[0]
   num_ligand_atoms = len(ligand_coords)
   num_protein_atoms = len(protein_coords)
   pocket_inds = []
