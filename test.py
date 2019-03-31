@@ -50,13 +50,10 @@ def compute_binding_pocket_features(protein_fname, ligand_fname, threshold=.3):
 
     finder = bp.ConvexHullPocketFinder()
     pockets, pocket_atoms, pocket_coords = finder.find_pockets(protein_fname, ligand_fname)
-    # pockets = [((x, x), (x, x), (x,x)), ((x, x), (x, x), (x,x)), ((x, x), (x, x), (x,x))] size 3
-    # len(pocket_atoms) = 173
-    # pocket_coords shape (774, 3) (312, 3) (1709, 3)
     n_pockets = len(pockets)
-    n_pocket_features = BindingPocketFeaturizer.n_features #24
+    n_pocket_features = BindingPocketFeaturizer.n_features
 
-    features = np.zeros((n_pockets, n_pocket_features+n_ligand_features)) # shape (3, 1048)
+    features = np.zeros((n_pockets, n_pocket_features+n_ligand_features))
     pocket_features = pocket_featurizer.featurize(protein_fname, pockets, pocket_atoms, pocket_coords, verbose=True)
     features[:, :n_pocket_features] = pocket_features
     features[:, n_pocket_features:] = ligand_features
