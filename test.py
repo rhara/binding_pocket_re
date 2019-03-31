@@ -76,7 +76,13 @@ parser.add_argument('--ligand', '-l', type=str, required=True, help='Ligand file
 parser.add_argument('--threshold', '-t', type=float, default=.3, help='Threshold')
 args.parser.parse_args()
 
+protein_fname = args.protein
+ligand_fname = args.ligand
+
 pocket_featurizer = BindingPocketFeaturizer()
 ligand_featurizer = CircularFingerprint(size=1024)
 
-compute_binding_pocket_features(args.protein', args.ligand, threshold=args.threshold)
+features, labels = compute_binding_pocket_features(protein_fname, ligand_fname, threshold=args.threshold)
+
+print(features)
+print(labels)
