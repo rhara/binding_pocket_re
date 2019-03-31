@@ -4,11 +4,10 @@ import numpy as np
 import mdtraj
 from deepchem.feat import CircularFingerprint
 from deepchem.utils.save import log
-from deepchem.feat import Featurizer
 import binding_pocket as bp
 
 
-class BindingPocketFeaturizer(Featurizer):
+class BindingPocketFeaturizer:
     """
     Featurizes binding pockets with information about chemical environments.
     """
@@ -28,13 +27,12 @@ class BindingPocketFeaturizer(Featurizer):
         all_features = np.zeros((n_pockets, n_residues))
         for pocket_num, (pocket, coords) in enumerate(zip(pockets, pocket_coords)):
             pocket_atoms = pocket_atoms_map[pocket]
-            for ind, atom in enumerate(pocket_atoms):
+            for atom in pocket_atoms:
                 atom_name = str(protein.top.atom(atom))
                 residue = atom_name[:3]
                 if residue not in res_map:
                     log('Warning: Non-stardard residue in PDB file "%s"' % residue, verbose)
                     continue
-                atomtype = atom_name.split('-')[1]
                 all_features[pocket_num, res_map[residue]] += 1
         return all_features
 
@@ -54,15 +52,15 @@ def compute_binding_pocket_features(protein_fname, ligand_fname, threshold=.3):
     n_pocket_features = BindingPocketFeaturizer.n_features
 
     features = np.zeros((n_pockets, n_pocket_features+n_ligand_features))
-    pocket_features = pocket_featurizer.featurize(protein_fname, pockets, pocket_atoms, pocket_coords, verbose=True)
+    pocket_features = pocket_featurizer.featurize(protein_fname, pockets, pocket_atoms, pocket_coords)
     features[:, :n_pocket_features] = pocket_features
     features[:, n_pocket_features:] = ligand_features
 
     labels = np.zeros(n_pockets)
     pocket_atoms[active_site_box] = active_site_atoms
-    for ind, pocket in enumerate(pockets):
+    for i, pocket in enumerate(pockets):
         overlap = bp.compute_overlap(pocket_atoms, active_site_box, pocket)
-        labels[ind] = 0 if overlap <= threshold else 1
+        labels[i] = 0 if overlap <= threshold else 1
 
     return features, labels
 
@@ -82,4 +80,5 @@ ligand_featurizer = CircularFingerprint(size=1024)
 features, labels = compute_binding_pocket_features(protein_fname, ligand_fname, threshold=args.threshold)
 
 print(features)
+print(features.shape)
 print(labels)
