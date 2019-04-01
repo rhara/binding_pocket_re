@@ -1,8 +1,63 @@
 from sys import stderr
 import numpy as np
 from scipy.spatial import ConvexHull
+from rdkit import Chem
+import mdtraj
 from deepchem.feat.fingerprints import CircularFingerprint
 from deepchem.utils import rdkit_util
+
+
+class BindingPocketFeaturizer:
+    """
+    Featurizes binding pockets with information about chemical environments.
+    """
+    residues = [
+        'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE',
+        'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'PYL', 'SER', 'SEC', 'THR', 'TRP',
+        'TYR', 'VAL', 'ASX', 'GLX'
+    ]
+
+    n_features = len(residues)
+
+    def featurize(self, protein_fname, pockets, pocket_atoms_map, pocket_coords, verbose=False):
+        protein = mdtraj.load(protein_fname)
+        n_pockets = len(pockets)
+        n_residues = len(self.residues)
+        res_map = {r: i for i, r in enumerate(self.residues)}
+        all_features = np.zeros((n_pockets, n_residues))
+        for pocket_num, (pocket, coords) in enumerate(zip(pockets, pocket_coords)):
+            pocket_atoms = pocket_atoms_map[pocket]
+            for atom in pocket_atoms:
+                atom_name = str(protein.top.atom(atom))
+                residue = atom_name[:3]
+                if residue not in res_map:
+                    print('Warning: Non-stardard residue in PDB file "%s"' % residue, file=stderr)
+                    continue
+                all_features[pocket_num, res_map[residue]] += 1
+        return all_features
+
+    def multi_featurize(self, protein_fname, ligand_fname, threshold=.3):
+        active_site_box, active_site_atoms, active_site_coords = extract_active_site(protein_fname, ligand_fname)
+
+        finder = ConvexHullPocketFinder()
+        pockets, pocket_atoms, pocket_coords = finder.find_pockets(protein_fname, ligand_fname)
+        n_pockets = len(pockets)
+        n_pocket_features = BindingPocketFeaturizer.n_features
+        pocket_features = self.featurize(protein_fname, pockets, pocket_atoms, pocket_coords)
+
+        ligand_mol2 = ligand_fname.replace('.sdf', '.mol2')
+        mol = Chem.MolFromMol2File(ligand_mol2, removeHs=False)
+        n_ligand_features = 1024
+        ligand_featurizer = CircularFingerprint(size=n_ligand_features)
+        ligand_features = ligand_featurizer.featurize([mol])
+
+        labels = np.zeros(n_pockets)
+        pocket_atoms[active_site_box] = active_site_atoms
+        for i, pocket in enumerate(pockets):
+            overlap = compute_overlap(pocket_atoms, active_site_box, pocket)
+            labels[i] = 0 if overlap <= threshold else 1
+
+        return pocket_features, ligand_features, labels
 
 
 def extract_active_site(protein_file, ligand_file, cutoff=4):
@@ -81,7 +136,7 @@ def boxes_to_atoms(atom_coords, boxes):
     for box_ind, box in enumerate(boxes):
         box_atoms = []
         (x_min, x_max), (y_min, y_max), (z_min, z_max) = box
-        print("Handing box %d/%d" % (box_ind, len(boxes)), file=stderr)
+        # print("Handing box %d/%d" % (box_ind, len(boxes)), file=stderr)
         for atom_ind in range(len(atom_coords)):
             atom = atom_coords[atom_ind]
             x_cont = x_min <= atom[0] and atom[0] <= x_max
