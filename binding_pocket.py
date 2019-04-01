@@ -6,37 +6,37 @@ import mdtraj
 from deepchem.feat.fingerprints import CircularFingerprint
 from deepchem.utils import rdkit_util
 
+import sys
 
-def mdtraj_count_atoms(trj_protein):
+np.set_printoptions(threshold=np.inf)
+
+def mdtraj_count_atoms(protein):
     n_hvys = 0
-    for atom in trj_protein.top.atoms:
+    for atom in protein.top.atoms:
         if 1 < atom.element.atomic_number:
             n_hvys += 1
-    return trj_protein.n_atoms, n_hvys
+    return protein.n_atoms, n_hvys
 
-def write_pocket_atoms(fname, rdk_protein, protein_coords, pocket_atoms):
-    out = open(fname, 'wt')
-    out.write('%d\n\n' % len(pocket_atoms))
+def mdtraj_write_pocket_atoms(fname, protein, pocket_atoms):
+    xyzs = protein.xyz[0]*10
+    syms = [atom.element.symbol for atom in protein.top.atoms]
 
-    for idx in pocket_atoms:
-        atom = rdk_protein.GetAtomWithIdx(idx)
-        sym = atom.GetSymbol()
-        x, y, z = protein_coords[idx]
-        out.write('%3s%15.5f%15.5f%15.5f\n' % (sym, x, y, z))
-    out.close()
+    with open(fname, 'wt') as out:
+        out.write('%d\n\n' % len(pocket_atoms))
 
-def check_residues(protein_fname, residue_list):
-    rdk_protein = Chem.rdmolfiles.MolFromPDBFile(protein_fname, removeHs=False)
+        for idx in pocket_atoms:
+            sym = syms[idx]
+            x, y, z = xyzs[idx]
+            out.write('%3s%15.5f%15.5f%15.5f\n' % (sym, x, y, z))
+
+def check_residues(fname, residue_list):
+    protein = mdtraj.load(fname)
     res_map = {r: i for i, r in enumerate(residue_list)}
     atomic_hist = [0]*(len(residue_list)+1)
-    for atom in rdk_protein.GetAtoms():
-        idx = atom.GetIdx()
-        sym = atom.GetSymbol()
-        resinfo = atom.GetPDBResidueInfo()
-        chainID = resinfo.GetChainId()
-        resno = resinfo.GetResidueNumber()
-        resname = resinfo.GetResidueName()
-        # print('%d %s %s%d%s' % (idx, sym, resname, resno, chainID))
+    coords = protein.xyz
+    for atom in protein.top.atoms:
+        el = atom.element.symbol
+        resname = atom.residue.name
         if resname in residue_list:
             atomic_hist[res_map[resname]] += 1
         else:
@@ -64,13 +64,12 @@ class BindingPocketFeaturizer:
         n_residues = len(self.residues)
         res_map = {r: i for i, r in enumerate(self.residues)}
         all_features = np.zeros((n_pockets, n_residues))
-        rdk_protein = Chem.rdmolfiles.MolFromPDBFile(protein_fname, removeHs=False)
-        protein_coords = rdk_protein.GetConformer(0).GetPositions()
+        protein_coords = protein.xyz[0]
         count = 1
         for pocket_num, (pocket, coords) in enumerate(zip(pockets, pocket_coords)):
             pocket_atoms = pocket_atoms_map[pocket]
 
-            write_pocket_atoms('out%d.xyz' % count, rdk_protein, protein_coords, pocket_atoms)
+            mdtraj_write_pocket_atoms('out%d.xyz' % count, protein, pocket_atoms)
             count += 1
 
             print('%d:  pocket_atoms: %d' % (pocket_num, len(pocket_atoms)))
@@ -82,6 +81,7 @@ class BindingPocketFeaturizer:
                     # print('Warning: Non-stardard residue in PDB file "%s"' % residue, file=stderr)
                     continue
                 all_features[pocket_num, res_map[residue]] += 1
+
         return all_features
 
     def multi_featurize(self, protein_fname, ligand_fname, threshold=.3):
@@ -111,32 +111,22 @@ class BindingPocketFeaturizer:
 
 def extract_active_site(protein_file, ligand_file, cutoff=4):
     """Extracts a box for the active site."""
-    protein_coords = rdkit_util.load_molecule(protein_file, add_hydrogens=False)[0]
-    ligand_coords = rdkit_util.load_molecule(ligand_file, add_hydrogens=True, calc_charges=True)[0]
-    num_ligand_atoms = len(ligand_coords)
-    num_protein_atoms = len(protein_coords)
-    pocket_inds = []
-    pocket_atoms = set([])
-    for lig_atom_ind in range(num_ligand_atoms):
-        lig_atom = ligand_coords[lig_atom_ind]
-        for protein_atom_ind in range(num_protein_atoms):
-            protein_atom = protein_coords[protein_atom_ind]
-            if np.linalg.norm(lig_atom - protein_atom) < cutoff:
-                if protein_atom_ind not in pocket_atoms:
-                    pocket_atoms = pocket_atoms.union(set([protein_atom_ind]))
+    pro_coords = rdkit_util.load_molecule(protein_file, add_hydrogens=False)[0]
+    lig_coords = rdkit_util.load_molecule(ligand_file, add_hydrogens=True, calc_charges=True)[0]
+    n_lig_atoms = len(lig_coords)
+    n_pro_atoms = len(pro_coords)
+    pocket_atoms = set()
+    for i in range(n_lig_atoms):
+        lig_atom = np.tile(lig_coords[i], n_pro_atoms).reshape((n_pro_atoms, 3))
+        D = np.linalg.norm(lig_atom - pro_coords, axis=1) < cutoff
+        pocket_atoms = pocket_atoms.union(np.where(D == True)[0].flat)
     # Should be an array of size (n_pocket_atoms, 3)
-    pocket_atoms = list(pocket_atoms)
+    pocket_atoms = sorted(pocket_atoms)
     n_pocket_atoms = len(pocket_atoms)
-    pocket_coords = np.zeros((n_pocket_atoms, 3))
-    for ind, pocket_ind in enumerate(pocket_atoms):
-        pocket_coords[ind] = protein_coords[pocket_ind]
+    pocket_coords = pro_coords[pocket_atoms]
 
-    x_min = int(np.floor(np.amin(pocket_coords[:, 0])))
-    x_max = int(np.ceil(np.amax(pocket_coords[:, 0])))
-    y_min = int(np.floor(np.amin(pocket_coords[:, 1])))
-    y_max = int(np.ceil(np.amax(pocket_coords[:, 1])))
-    z_min = int(np.floor(np.amin(pocket_coords[:, 2])))
-    z_max = int(np.ceil(np.amax(pocket_coords[:, 2])))
+    x_min, y_min, z_min = np.floor(np.amin(pocket_coords, axis=0)).astype(int)
+    x_max, y_max, z_max = np.ceil(np.amax(pocket_coords, axis=0)).astype(int)
     return (((x_min, x_max), (y_min, y_max), (z_min, z_max)), pocket_atoms, pocket_coords)
 
 
@@ -155,22 +145,16 @@ def get_all_boxes(coords, pad=5):
     """Get all pocket boxes for protein coords.
 
     We pad all boxes the prescribed number of angstroms.
-
-    TODO(rbharath): It looks like this may perhaps be non-deterministic?
     """
     hull = ConvexHull(coords)
     boxes = []
     for triangle in hull.simplices:
         # coords[triangle, 0] gives the x-dimension of all triangle points
         # Take transpose to make sure rows correspond to atoms.
-        points = np.array([coords[triangle, 0], coords[triangle, 1], coords[triangle, 2]]).T
+        points = coords[triangle,:]
         # We voxelize so all grids have integral coordinates (convenience)
-        x_min, x_max = np.amin(points[:, 0]), np.amax(points[:, 0])
-        x_min, x_max = int(np.floor(x_min)) - pad, int(np.ceil(x_max)) + pad
-        y_min, y_max = np.amin(points[:, 1]), np.amax(points[:, 1])
-        y_min, y_max = int(np.floor(y_min)) - pad, int(np.ceil(y_max)) + pad
-        z_min, z_max = np.amin(points[:, 2]), np.amax(points[:, 2])
-        z_min, z_max = int(np.floor(z_min)) - pad, int(np.ceil(z_max)) + pad
+        x_min, y_min, z_min = np.floor(np.amin(points, axis=0)) - pad
+        x_max, y_max, z_max = np.ceil(np.amax(points, axis=0)) + pad
         boxes.append(((x_min, x_max), (y_min, y_max), (z_min, z_max)))
     return boxes
 
@@ -182,17 +166,19 @@ def boxes_to_atoms(atom_coords, boxes):
     there a reasonable heuristic we can use to speed this up?
     """
     mapping = {}
-    for box_ind, box in enumerate(boxes):
+    for i, box in enumerate(boxes):
         box_atoms = []
         (x_min, x_max), (y_min, y_max), (z_min, z_max) = box
-        # print("Handing box %d/%d" % (box_ind, len(boxes)), file=stderr)
-        for atom_ind in range(len(atom_coords)):
-            atom = atom_coords[atom_ind]
-            x_cont = x_min <= atom[0] and atom[0] <= x_max
-            y_cont = y_min <= atom[1] and atom[1] <= y_max
-            z_cont = z_min <= atom[2] and atom[2] <= z_max
-            if x_cont and y_cont and z_cont:
-                box_atoms.append(atom_ind)
+        # print("Handing box %d/%d" % (i, len(boxes)), file=stderr)
+        for j in range(atom_coords.shape[0]):
+            atom = atom_coords[j]
+            if not (x_min <= atom[0] <= x_max):
+                continue
+            if not (y_min <= atom[1] <= y_max):
+                continue
+            if not (z_min <= atom[2] <= z_max):
+                continue
+            box_atoms.append(j)
         mapping[box] = box_atoms
     return mapping
 
