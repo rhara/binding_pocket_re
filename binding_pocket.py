@@ -1,13 +1,8 @@
-import os, logging, tempfile
+from sys import stderr
 import numpy as np
-from subprocess import call
 from scipy.spatial import ConvexHull
 from deepchem.feat.fingerprints import CircularFingerprint
-from deepchem.models.sklearn_models import SklearnModel
 from deepchem.utils import rdkit_util
-from bp_features import BindingPocketFeaturizer
-
-logger = logging.getLogger(__name__)
 
 
 def extract_active_site(protein_file, ligand_file, cutoff=4):
@@ -86,7 +81,7 @@ def boxes_to_atoms(atom_coords, boxes):
     for box_ind, box in enumerate(boxes):
         box_atoms = []
         (x_min, x_max), (y_min, y_max), (z_min, z_max) = box
-        logger.info("Handing box %d/%d" % (box_ind, len(boxes)))
+        print("Handing box %d/%d" % (box_ind, len(boxes)), file=stderr)
         for atom_ind in range(len(atom_coords)):
             atom = atom_coords[atom_ind]
             x_cont = x_min <= atom[0] and atom[0] <= x_max

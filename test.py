@@ -1,9 +1,9 @@
 import argparse
+from sys import stderr
 from rdkit import Chem
 import numpy as np
 import mdtraj
 from deepchem.feat import CircularFingerprint
-from deepchem.utils.save import log
 import binding_pocket as bp
 
 
@@ -31,38 +31,33 @@ class BindingPocketFeaturizer:
                 atom_name = str(protein.top.atom(atom))
                 residue = atom_name[:3]
                 if residue not in res_map:
-                    log('Warning: Non-stardard residue in PDB file "%s"' % residue, verbose)
+                    print('Warning: Non-stardard residue in PDB file "%s"' % residue, file=stderr)
                     continue
                 all_features[pocket_num, res_map[residue]] += 1
         return all_features
 
+    def multi_featurize(self, protein_fname, ligand_fname, threshold=.3):
+        active_site_box, active_site_atoms, active_site_coords = bp.extract_active_site(protein_fname, ligand_fname)
 
-def compute_binding_pocket_features(protein_fname, ligand_fname, threshold=.3):
-    ligand_mol2 = ligand_fname.replace('.sdf', '.mol2')
+        finder = bp.ConvexHullPocketFinder()
+        pockets, pocket_atoms, pocket_coords = finder.find_pockets(protein_fname, ligand_fname)
+        n_pockets = len(pockets)
+        n_pocket_features = BindingPocketFeaturizer.n_features
+        pocket_features = pocket_featurizer.featurize(protein_fname, pockets, pocket_atoms, pocket_coords)
 
-    active_site_box, active_site_atoms, active_site_coords = bp.extract_active_site(protein_fname, ligand_fname)
-    mol = Chem.MolFromMol2File(ligand_mol2, removeHs=False)
+        ligand_mol2 = ligand_fname.replace('.sdf', '.mol2')
+        mol = Chem.MolFromMol2File(ligand_mol2, removeHs=False)
+        n_ligand_features = 1024
+        ligand_featurizer = CircularFingerprint(size=n_ligand_features)
+        ligand_features = ligand_featurizer.featurize([mol])
 
-    n_ligand_features = 1024
-    ligand_features = ligand_featurizer.featurize([mol])
+        labels = np.zeros(n_pockets)
+        pocket_atoms[active_site_box] = active_site_atoms
+        for i, pocket in enumerate(pockets):
+            overlap = bp.compute_overlap(pocket_atoms, active_site_box, pocket)
+            labels[i] = 0 if overlap <= threshold else 1
 
-    finder = bp.ConvexHullPocketFinder()
-    pockets, pocket_atoms, pocket_coords = finder.find_pockets(protein_fname, ligand_fname)
-    n_pockets = len(pockets)
-    n_pocket_features = BindingPocketFeaturizer.n_features
-
-    features = np.zeros((n_pockets, n_pocket_features+n_ligand_features))
-    pocket_features = pocket_featurizer.featurize(protein_fname, pockets, pocket_atoms, pocket_coords)
-    features[:, :n_pocket_features] = pocket_features
-    features[:, n_pocket_features:] = ligand_features
-
-    labels = np.zeros(n_pockets)
-    pocket_atoms[active_site_box] = active_site_atoms
-    for i, pocket in enumerate(pockets):
-        overlap = bp.compute_overlap(pocket_atoms, active_site_box, pocket)
-        labels[i] = 0 if overlap <= threshold else 1
-
-    return features, labels
+        return pocket_features, ligand_features, labels
 
 
 parser = argparse.ArgumentParser(description='BindingPocketFeaturizer')
@@ -75,10 +70,8 @@ protein_fname = args.protein
 ligand_fname = args.ligand
 
 pocket_featurizer = BindingPocketFeaturizer()
-ligand_featurizer = CircularFingerprint(size=1024)
-
-features, labels = compute_binding_pocket_features(protein_fname, ligand_fname, threshold=args.threshold)
-
-print(features)
-print(features.shape)
+pocket_features, ligand_features, labels = pocket_featurizer.multi_featurize(protein_fname, ligand_fname)
+print(pocket_features)
+print(pocket_features.shape)
+print(ligand_features.shape)
 print(labels)
