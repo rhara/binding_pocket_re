@@ -94,8 +94,10 @@ class BindingPocketFeaturizer:
         n_pocket_features = BindingPocketFeaturizer.n_features
         pocket_features = self.featurize(protein_fname, pockets, pocket_atoms, pocket_coords)
 
-        ligand_mol2 = ligand_fname.replace('.sdf', '.mol2')
-        mol = Chem.MolFromMol2File(ligand_mol2, removeHs=False)
+        # ligand_mol2 = ligand_fname.replace('.sdf', '.mol2')
+        # mol = Chem.MolFromMol2File(ligand_mol2, removeHs=False)
+        for mol in Chem.rdmolfiles.SDMolSupplier(ligand_fname, removeHs=False):
+            break
         n_ligand_features = 1024
         ligand_featurizer = CircularFingerprint(size=n_ligand_features)
         ligand_features = ligand_featurizer.featurize([mol])
