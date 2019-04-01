@@ -9,9 +9,10 @@ args = parser.parse_args()
 
 protein_fname = args.protein
 ligand_fname = args.ligand
+threshold = args.threshold
 
 pocket_featurizer = BindingPocketFeaturizer()
-pocket_features, ligand_features, labels = pocket_featurizer.multi_featurize(protein_fname, ligand_fname)
+pocket_features, ligand_features, labels = pocket_featurizer.multi_featurize(protein_fname, ligand_fname, threshold=threshold)
 
 print(pocket_features)
 print(pocket_features.shape)
