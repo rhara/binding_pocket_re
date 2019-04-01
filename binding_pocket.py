@@ -25,6 +25,24 @@ def write_pocket_atoms(fname, rdk_protein, protein_coords, pocket_atoms):
         out.write('%3s%15.5f%15.5f%15.5f\n' % (sym, x, y, z))
     out.close()
 
+def check_residues(protein_fname, residue_list):
+    rdk_protein = Chem.rdmolfiles.MolFromPDBFile(protein_fname, removeHs=False)
+    res_map = {r: i for i, r in enumerate(residue_list)}
+    atomic_hist = [0]*(len(residue_list)+1)
+    for atom in rdk_protein.GetAtoms():
+        idx = atom.GetIdx()
+        sym = atom.GetSymbol()
+        resinfo = atom.GetPDBResidueInfo()
+        chainID = resinfo.GetChainId()
+        resno = resinfo.GetResidueNumber()
+        resname = resinfo.GetResidueName()
+        # print('%d %s %s%d%s' % (idx, sym, resname, resno, chainID))
+        if resname in residue_list:
+            atomic_hist[res_map[resname]] += 1
+        else:
+            atomic_hist[-1] += 1
+    return atomic_hist
+
 class BindingPocketFeaturizer:
     """
     Featurizes binding pockets with information about chemical environments.
@@ -66,28 +84,9 @@ class BindingPocketFeaturizer:
                 all_features[pocket_num, res_map[residue]] += 1
         return all_features
 
-    def check_residues(self, protein_fname):
-        mol = Chem.rdmolfiles.MolFromPDBFile(protein_fname, removeHs=False)
-        res_map = {r: i for i, r in enumerate(self.residues)}
-        atomic_hist = [0]*(len(self.residues)+1)
-        print(' '.join(self.residues))
-        for atom in mol.GetAtoms():
-            idx = atom.GetIdx()
-            sym = atom.GetSymbol()
-            resinfo = atom.GetPDBResidueInfo()
-            chainID = resinfo.GetChainId()
-            resno = resinfo.GetResidueNumber()
-            resname = resinfo.GetResidueName()
-            # print('%d %s %s%d%s' % (idx, sym, resname, resno, chainID))
-            if resname in self.residues:
-                atomic_hist[res_map[resname]] += 1
-            else:
-                atomic_hist[-1] += 1
-        print(atomic_hist)
-
     def multi_featurize(self, protein_fname, ligand_fname, threshold=.3):
         active_site_box, active_site_atoms, active_site_coords = extract_active_site(protein_fname, ligand_fname)
-        print(active_site_box)
+        print('active_site_box:', active_site_box)
 
         finder = ConvexHullPocketFinder()
         pockets, pocket_atoms, pocket_coords = finder.find_pockets(protein_fname, ligand_fname)
