@@ -21,6 +21,11 @@ class BindingPocketFeaturizer:
 
     def featurize(self, protein_fname, pockets, pocket_atoms_map, pocket_coords, verbose=False):
         protein = mdtraj.load(protein_fname)
+        n_hvys = 0
+        for atom in protein.top.atoms:
+            if 1 < atom.element.atomic_number:
+                n_hvys += 1
+        print('protein: %s n_hvys/n_atoms=%d/%d' % (protein_fname, n_hvys, protein.n_atoms))
         # chainid = 0
         # for chain in protein.top.chains:
         #     chainid += 1
@@ -32,6 +37,7 @@ class BindingPocketFeaturizer:
         all_features = np.zeros((n_pockets, n_residues))
         for pocket_num, (pocket, coords) in enumerate(zip(pockets, pocket_coords)):
             pocket_atoms = pocket_atoms_map[pocket]
+            print(len(pocket_atoms))
             for atom in pocket_atoms:
                 atom_name = str(protein.top.atom(atom))
                 residue = atom_name[:3]
