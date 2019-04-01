@@ -7,6 +7,24 @@ from deepchem.feat.fingerprints import CircularFingerprint
 from deepchem.utils import rdkit_util
 
 
+def mdtraj_count_atoms(trj_protein):
+    n_hvys = 0
+    for atom in trj_protein.top.atoms:
+        if 1 < atom.element.atomic_number:
+            n_hvys += 1
+    return trj_protein.n_atoms, n_hvys
+
+def write_pocket_atoms(fname, rdk_protein, protein_coords, pocket_atoms):
+    out = open(fname, 'wt')
+    out.write('%d\n\n' % len(pocket_atoms))
+
+    for idx in pocket_atoms:
+        atom = rdk_protein.GetAtomWithIdx(idx)
+        sym = atom.GetSymbol()
+        x, y, z = protein_coords[idx]
+        out.write('%3s%15.5f%15.5f%15.5f\n' % (sym, x, y, z))
+    out.close()
+
 class BindingPocketFeaturizer:
     """
     Featurizes binding pockets with information about chemical environments.
@@ -16,39 +34,60 @@ class BindingPocketFeaturizer:
         'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'PYL', 'SER', 'SEC', 'THR', 'TRP',
         'TYR', 'VAL', 'ASX', 'GLX'
     ]
-
     n_features = len(residues)
 
-    def featurize(self, protein_fname, pockets, pocket_atoms_map, pocket_coords, verbose=False):
+    def featurize(self, protein_fname, pockets, pocket_atoms_map, pocket_coords):
         protein = mdtraj.load(protein_fname)
-        n_hvys = 0
-        for atom in protein.top.atoms:
-            if 1 < atom.element.atomic_number:
-                n_hvys += 1
+
+        n_atoms, n_hvys = mdtraj_count_atoms(protein)
         print('protein: %s n_hvys/n_atoms=%d/%d' % (protein_fname, n_hvys, protein.n_atoms))
-        # chainid = 0
-        # for chain in protein.top.chains:
-        #     chainid += 1
-        #     for atom in chain.atoms:
-        #         print(chainid, atom)
+
         n_pockets = len(pockets)
         n_residues = len(self.residues)
         res_map = {r: i for i, r in enumerate(self.residues)}
         all_features = np.zeros((n_pockets, n_residues))
+        rdk_protein = Chem.rdmolfiles.MolFromPDBFile(protein_fname, removeHs=False)
+        protein_coords = rdk_protein.GetConformer(0).GetPositions()
+        count = 1
         for pocket_num, (pocket, coords) in enumerate(zip(pockets, pocket_coords)):
             pocket_atoms = pocket_atoms_map[pocket]
-            print(len(pocket_atoms))
+
+            write_pocket_atoms('out%d.xyz' % count, rdk_protein, protein_coords, pocket_atoms)
+            count += 1
+
+            print('%d:  pocket_atoms: %d' % (pocket_num, len(pocket_atoms)))
+
             for atom in pocket_atoms:
                 atom_name = str(protein.top.atom(atom))
                 residue = atom_name[:3]
                 if residue not in res_map:
-                    print('Warning: Non-stardard residue in PDB file "%s"' % residue, file=stderr)
+                    # print('Warning: Non-stardard residue in PDB file "%s"' % residue, file=stderr)
                     continue
                 all_features[pocket_num, res_map[residue]] += 1
         return all_features
 
+    def check_residues(self, protein_fname):
+        mol = Chem.rdmolfiles.MolFromPDBFile(protein_fname, removeHs=False)
+        res_map = {r: i for i, r in enumerate(self.residues)}
+        atomic_hist = [0]*(len(self.residues)+1)
+        print(' '.join(self.residues))
+        for atom in mol.GetAtoms():
+            idx = atom.GetIdx()
+            sym = atom.GetSymbol()
+            resinfo = atom.GetPDBResidueInfo()
+            chainID = resinfo.GetChainId()
+            resno = resinfo.GetResidueNumber()
+            resname = resinfo.GetResidueName()
+            # print('%d %s %s%d%s' % (idx, sym, resname, resno, chainID))
+            if resname in self.residues:
+                atomic_hist[res_map[resname]] += 1
+            else:
+                atomic_hist[-1] += 1
+        print(atomic_hist)
+
     def multi_featurize(self, protein_fname, ligand_fname, threshold=.3):
         active_site_box, active_site_atoms, active_site_coords = extract_active_site(protein_fname, ligand_fname)
+        print(active_site_box)
 
         finder = ConvexHullPocketFinder()
         pockets, pocket_atoms, pocket_coords = finder.find_pockets(protein_fname, ligand_fname)
