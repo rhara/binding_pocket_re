@@ -3,8 +3,8 @@ import numpy as np
 from scipy.spatial import ConvexHull
 from rdkit import Chem
 import mdtraj
-from deepchem.feat.fingerprints import CircularFingerprint
-from deepchem.utils import rdkit_util
+from fingerprints import CircularFingerprint
+from load_mol import load_molecule
 
 import sys
 
@@ -100,7 +100,7 @@ class BindingPocketFeaturizer:
             break
         n_ligand_features = 1024
         ligand_featurizer = CircularFingerprint(size=n_ligand_features)
-        ligand_features = ligand_featurizer.featurize([mol])
+        ligand_features = ligand_featurizer.featurize(mol)
 
         labels = np.zeros(n_pockets)
         pocket_atoms[active_site_box] = active_site_atoms
@@ -113,8 +113,8 @@ class BindingPocketFeaturizer:
 
 def extract_active_site(protein_file, ligand_file, cutoff=4):
     """Extracts a box for the active site."""
-    pro_coords = rdkit_util.load_molecule(protein_file, add_hydrogens=False)[0]
-    lig_coords = rdkit_util.load_molecule(ligand_file, add_hydrogens=True, calc_charges=True)[0]
+    pro_coords = load_molecule(protein_file, add_hydrogens=False)[0]
+    lig_coords = load_molecule(ligand_file, add_hydrogens=True, calc_charges=True)[0]
     n_lig_atoms = len(lig_coords)
     n_pro_atoms = len(pro_coords)
     pocket_atoms = set()
@@ -261,13 +261,13 @@ class ConvexHullPocketFinder(BindingPocketFinder):
     def find_all_pockets(self, protein_file):
         """Find list of binding pockets on protein."""
         # protein_coords is (N, 3) tensor
-        coords = rdkit_util.load_molecule(protein_file)[0]
+        coords = load_molecule(protein_file)[0]
         return get_all_boxes(coords, self.pad)
 
     def find_pockets(self, protein_file, ligand_file):
         """Find list of suitable binding pockets on protein."""
-        protein_coords = rdkit_util.load_molecule(protein_file, add_hydrogens=False, calc_charges=False)[0]
-        ligand_coords = rdkit_util.load_molecule(ligand_file, add_hydrogens=False, calc_charges=False)[0]
+        protein_coords = load_molecule(protein_file, add_hydrogens=False, calc_charges=False)[0]
+        ligand_coords = load_molecule(ligand_file, add_hydrogens=False, calc_charges=False)[0]
         boxes = get_all_boxes(protein_coords, self.pad)
         mapping = boxes_to_atoms(protein_coords, boxes)
         pockets, pocket_atoms_map = merge_overlapping_boxes(mapping, boxes)
