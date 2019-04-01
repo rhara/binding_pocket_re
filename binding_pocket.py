@@ -21,6 +21,11 @@ class BindingPocketFeaturizer:
 
     def featurize(self, protein_fname, pockets, pocket_atoms_map, pocket_coords, verbose=False):
         protein = mdtraj.load(protein_fname)
+        # chainid = 0
+        # for chain in protein.top.chains:
+        #     chainid += 1
+        #     for atom in chain.atoms:
+        #         print(chainid, atom)
         n_pockets = len(pockets)
         n_residues = len(self.residues)
         res_map = {r: i for i, r in enumerate(self.residues)}
