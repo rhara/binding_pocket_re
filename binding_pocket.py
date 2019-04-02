@@ -1,3 +1,4 @@
+import os
 from sys import stderr
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -69,7 +70,8 @@ class BindingPocketFeaturizer:
         for pocket_num, (pocket, coords) in enumerate(zip(pockets, pocket_coords)):
             pocket_atoms = pocket_atoms_map[pocket]
 
-            mdtraj_write_pocket_atoms('out%d.xyz' % count, protein, pocket_atoms)
+            base = os.path.basename(protein_fname).replace('.pdb', '')
+            mdtraj_write_pocket_atoms('%s_pocket_%02d.xyz' % (base, count), protein, pocket_atoms)
             count += 1
 
             print('%d:  pocket_atoms: %d' % (pocket_num, len(pocket_atoms)))

@@ -45,9 +45,6 @@ contents_df = load_pdbbind_labels(labels_file)
 ids = contents_df['PDB code'].values
 y = np.array([float(val) for val in contents_df['-logKd/Ki'].values])
 
-#print(ids)
-#print(y)
-
 all_features = []
 all_labels = []
 all_ids = []
@@ -67,11 +64,12 @@ for i, pdb_code in enumerate(ids):
     except:
         print('Warning: failed %s' % pdb_code, file=stderr)
         continue
+    print(labels)
     all_features.append(features)
     all_labels.append(labels)
     ids = np.array(['%s%d' % (pdb_code, j) for j in range(len(labels))])
     all_ids.append(ids)
-    if 3 <= len(all_ids):
+    if 10 <= len(all_ids):
         break
 
 X = np.vstack(all_features)
